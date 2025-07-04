@@ -42,7 +42,7 @@ feature_ranges = {
     "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
     "INR": {"type": "numerical", "min": 140, "max": 170, "default": 160},
     "PT": {"type": "numerical", "min": 18, "max": 80, "default": 40},
-    "Estimated Blood Loss (EBL) > 300 mL": {"type": "categorical", "options": ["YES", "NO"]}
+    "Estimated Blood Loss (EBL) > 300 mL": {"type": "categorical", "options": ["YES", "NO"]},
     "eGFR": {"type": "numerical", "min": 18, "max": 80, "default": 40},
     "Tumor Dimension (mm)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
     "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]}
