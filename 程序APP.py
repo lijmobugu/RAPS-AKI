@@ -103,7 +103,7 @@ def create_shap_visualization(explainer, features, feature_names):
     """创建 SHAP 可视化"""
     try:
         if explainer is None:
-            return None
+            return None, None
         
         # 计算 SHAP 值
         shap_values = explainer.shap_values(features.values)
@@ -127,7 +127,7 @@ def create_shap_visualization(explainer, features, feature_names):
         
         plt.tight_layout()
         return fig, shap_values
-    
+        
     except Exception as e:
         st.error(f"SHAP 可视化创建失败: {e}")
         return None, None
@@ -212,3 +212,47 @@ if st.button("🔍 开始预测", type="primary"):
                 if fig is not None:
                     st.pyplot(fig)
                     plt.close()
+                    
+                    # 显示数值表格
+                    if shap_values is not None:
+                        st.subheader("📋 特征贡献度详情")
+                        
+                        # 创建特征重要性表格
+                        importance_df = pd.DataFrame({
+                            '特征名称': feature_names,
+                            '输入值': [feature_values[name] for name in feature_names],
+                            'SHAP值': shap_values[0],
+                            '重要性': np.abs(shap_values[0])
+                        })
+                        
+                        # 按重要性排序
+                        importance_df = importance_df.sort_values('重要性', ascending=False)
+                        
+                        # 格式化显示
+                        st.dataframe(
+                            importance_df.style.format({
+                                'SHAP值': '{:.4f}',
+                                '重要性': '{:.4f}'
+                            }),
+                            use_container_width=True
+                        )
+                        
+                        # 解释说明
+                        st.info("""
+                        **SHAP 值解释:**
+                        - 正值表示该特征增加了 AKI 风险
+                        - 负值表示该特征降低了 AKI 风险  
+                        - 绝对值越大表示该特征对预测结果的影响越大
+                        """)
+                else:
+                    st.warning("⚠️ 特征重要性分析暂时无法显示，但预测结果仍然有效")
+            else:
+                st.warning("⚠️ 无法创建特征重要性分析，但预测结果仍然有效")
+
+    except Exception as e:
+        st.error(f"❌ 预测过程中发生错误: {e}")
+        st.info("请检查输入值是否正确，或联系管理员")
+
+# 添加页脚信息
+st.markdown("---")
+st.markdown("*本预测模型仅供医学研究参考，不能替代专业医疗诊断*")
