@@ -34,13 +34,13 @@ except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
 
 # 特征范围定义
 feature_names = [
-    "AST/ALT(DRR)", "INR", "PT", "Diabete", "eGFR","Intraoperative Complications", "Creatinine (Cr)", "Age", "Tumor Dimension (mm)","Estimated Blood Loss (EBL) > 300 mL"
+    "AST/ALT(DRR)", "INR", "PT", "Diabetes", "eGFR","Intraoperative Complications", "Creatinine (Cr)", "Age", "Tumor Dimension (mm)","Estimated Blood Loss (EBL) > 300 mL"
 ]
 feature_ranges = {
     "AST/ALT(DRR)": {"type": "numerical", "min": 18, "max": 80, "default": 40},
     "INR": {"type": "numerical", "min": 140, "max": 170, "default": 160},
     "PT": {"type": "numerical", "min": 18, "max": 80, "default": 40},
-    "Diabete": {"type": "categorical", "options": ["YES", "NO"]},
+    "Diabetes": {"type": "categorical", "options": ["YES", "NO"]},
     "eGFR": {"type": "numerical", "min": 18, "max": 80, "default": 40},
     "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]},
     "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
