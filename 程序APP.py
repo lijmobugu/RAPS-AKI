@@ -5,6 +5,17 @@ import joblib
 from sklearn.ensemble import StackingClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import LabelEncoder  # ← 这行很重要
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import catboost
 # 暂时注释掉这些可能有问题的导入
 # from catboost import CatBoostClassifier
 # from xgboost import XGBClassifier
