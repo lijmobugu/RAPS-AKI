@@ -78,3 +78,6 @@ for feature, properties in feature_ranges.items():
 
 # 转换为模型输入格式
 features = pd.DataFrame([feature_values], columns=feature_names)
+
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
