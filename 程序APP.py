@@ -34,7 +34,13 @@ import logging
 import warnings
 
 # 加载模型
-model = joblib.load('final_stacking_model.pkl')
+try:
+    model = joblib.load('final_stacking_model.pkl')
+except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
+    st.error(f"模型加载失败：{e}")
+    st.info("模型文件与当前环境不兼容，请重新训练模型或检查依赖版本")
+    model = None
+    st.stop()
 
 
 # 特征范围定义
