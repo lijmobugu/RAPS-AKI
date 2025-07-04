@@ -16,6 +16,7 @@ import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import catboost
+import shap
 # 暂时注释掉这些可能有问题的导入
 # from catboost import CatBoostClassifier
 # from xgboost import XGBClassifier
