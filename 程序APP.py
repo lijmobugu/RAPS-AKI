@@ -34,19 +34,18 @@ except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
 
 # 特征范围定义
 feature_names = [
-    "AST/ALT(DRR)", "INR", "PT", "Diabetes", "eGFR","Intraoperative Complications", "Creatinine (Cr)", "Age", "Tumor Dimension (mm)","Estimated Blood Loss (EBL) > 300 mL"
-]
+    "Age", "Diabetes", "AST/ALT(DRR)", "Creatinine (Cr)", "INR", "PT", "Estimated Blood Loss (EBL) > 300 mL", "eGFR", "Tumor Dimension (mm)","Intraoperative Complications"]
 feature_ranges = {
+    "Age": {"type": "numerical", "min": 0, "max": 200, "default": 0},
+    "Diabetes": {"type": "categorical", "options": ["YES", "NO"]},
     "AST/ALT(DRR)": {"type": "numerical", "min": 18, "max": 80, "default": 40},
+    "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
     "INR": {"type": "numerical", "min": 140, "max": 170, "default": 160},
     "PT": {"type": "numerical", "min": 18, "max": 80, "default": 40},
-    "Diabetes": {"type": "categorical", "options": ["YES", "NO"]},
-    "eGFR": {"type": "numerical", "min": 18, "max": 80, "default": 40},
-    "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]},
-    "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
-    "Age": {"type": "numerical", "min": 0, "max": 200, "default": 0},
-    "Tumor Dimension (mm)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
     "Estimated Blood Loss (EBL) > 300 mL": {"type": "categorical", "options": ["YES", "NO"]}
+    "eGFR": {"type": "numerical", "min": 18, "max": 80, "default": 40},
+    "Tumor Dimension (mm)": {"type": "numerical", "min": 0, "max": 170, "default": 0},
+    "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]}
 }
 
 # Streamlit 界面
