@@ -11,16 +11,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import catboost
 
-# 加载模型
+# Load model
 try:
     model = joblib.load('final_stacking_model.pkl')
 except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
-    st.error(f"模型加载失败：{e}")
-    st.info("模型文件与当前环境不兼容，请重新训练模型或检查依赖版本")
+    st.error(f"Model loading failed: {e}")
+    st.info("Model file is incompatible with current environment. Please retrain the model or check dependency versions.")
     model = None
     st.stop()
 
-# 特征范围定义
+# Feature range definitions
 feature_names = [
     "Age", "Diabetes", "AST/ALT(DRR)", "Creatinine (Cr)", "INR", "PT", 
     "Estimated Blood Loss (EBL) > 300 mL", "eGFR", "Tumor Dimension (mm)", 
@@ -40,16 +40,16 @@ feature_ranges = {
     "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]}
 }
 
-# Streamlit 界面
-st.title("🏥 AKI 预测模型")
-st.header("请输入以下特征值:")
+# Streamlit interface
+st.title("🏥 AKI Prediction Model")
+st.header("Please enter the following clinical parameters:")
 
-# 创建两列布局
+# Create two-column layout
 col1, col2 = st.columns(2)
 
 feature_values = {}
 for i, (feature, properties) in enumerate(feature_ranges.items()):
-    # 交替放置在两列中
+    # Alternate placement between two columns
     current_col = col1 if i % 2 == 0 else col2
     
     with current_col:
@@ -59,7 +59,7 @@ for i, (feature, properties) in enumerate(feature_ranges.items()):
                 min_value=float(properties["min"]),
                 max_value=float(properties["max"]),
                 value=float(properties["default"]),
-                help=f"范围: {properties['min']} - {properties['max']}"
+                help=f"Range: {properties['min']} - {properties['max']}"
             )
         elif properties["type"] == "categorical":
             feature_values[feature] = st.selectbox(
@@ -67,7 +67,7 @@ for i, (feature, properties) in enumerate(feature_ranges.items()):
                 options=properties["options"],
             )
 
-# 处理分类特征
+# Process categorical features
 processed_values = feature_values.copy()
 label_encoders = {}
 
@@ -77,84 +77,84 @@ for feature, properties in feature_ranges.items():
         label_encoders[feature].fit(properties["options"])
         processed_values[feature] = label_encoders[feature].transform([feature_values[feature]])[0]
 
-# 转换为模型输入格式
+# Convert to model input format
 features = pd.DataFrame([processed_values], columns=feature_names)
 
-# 预测功能（无 SHAP）
-if st.button("🔍 开始预测", type="primary"):
+# Prediction functionality (without SHAP)
+if st.button("🔍 Run Prediction", type="primary"):
     try:
-        # 模型预测
+        # Model prediction
         predicted_class = model.predict(features)[0]
         predicted_proba = model.predict_proba(features)[0]
 
-        # 显示预测结果
-        st.subheader("📊 预测结果:")
+        # Display prediction results
+        st.subheader("📊 Prediction Results:")
         
-        # 创建结果展示
+        # Create results display
         col1, col2 = st.columns(2)
         
         with col1:
             if predicted_class == 1:
-                st.error(f"⚠️ 预测结果: 高风险")
-                st.error(f"AKI 发生概率: **{predicted_proba[1]*100:.1f}%**")
+                st.error(f"⚠️ Prediction: High Risk")
+                st.error(f"AKI Probability: **{predicted_proba[1]*100:.1f}%**")
             else:
-                st.success(f"✅ 预测结果: 低风险")
-                st.success(f"AKI 发生概率: **{predicted_proba[1]*100:.1f}%**")
+                st.success(f"✅ Prediction: Low Risk")
+                st.success(f"AKI Probability: **{predicted_proba[1]*100:.1f}%**")
         
         with col2:
-            # 显示概率分布
+            # Display probability distribution
             prob_data = pd.DataFrame({
-                '类别': ['低风险', '高风险'],
-                '概率': [predicted_proba[0]*100, predicted_proba[1]*100]
+                'Risk Category': ['Low Risk', 'High Risk'],
+                'Probability': [predicted_proba[0]*100, predicted_proba[1]*100]
             })
-            st.bar_chart(prob_data.set_index('类别'))
+            st.bar_chart(prob_data.set_index('Risk Category'))
         
-        # 详细概率信息
-        st.subheader("📋 详细预测信息:")
+        # Detailed probability information
+        st.subheader("📋 Detailed Prediction Information:")
         
-        # 创建概率表格
+        # Create probability table
         prob_df = pd.DataFrame({
-            '风险类别': ['低风险 (Class 0)', '高风险 (Class 1)'],
-            '预测概率': [f"{predicted_proba[0]*100:.2f}%", f"{predicted_proba[1]*100:.2f}%"],
-            '置信度': [f"{predicted_proba[0]:.4f}", f"{predicted_proba[1]:.4f}"]
+            'Risk Category': ['Low Risk (Class 0)', 'High Risk (Class 1)'],
+            'Predicted Probability': [f"{predicted_proba[0]*100:.2f}%", f"{predicted_proba[1]*100:.2f}%"],
+            'Confidence Score': [f"{predicted_proba[0]:.4f}", f"{predicted_proba[1]:.4f}"]
         })
         
         st.dataframe(prob_df, use_container_width=True)
         
-        # 风险解释
-        st.subheader("🔍 结果解释:")
+        # Risk interpretation
+        st.subheader("🔍 Clinical Interpretation:")
         
         if predicted_class == 1:
             st.warning("""
-            **高风险预测说明:**
-            - 模型预测该患者发生 AKI 的概率较高
-            - 建议加强监护和预防措施
-            - 请结合临床实际情况进行综合判断
+            **High Risk Prediction:**
+            - The model predicts a high probability of AKI development for this patient
+            - Enhanced monitoring and preventive measures are recommended
+            - Please consider clinical context and additional risk factors in decision-making
             """)
         else:
             st.info("""
-            **低风险预测说明:**
-            - 模型预测该患者发生 AKI 的概率较低
-            - 仍需要常规监护
-            - 请结合临床实际情况进行综合判断
+            **Low Risk Prediction:**
+            - The model predicts a low probability of AKI development for this patient
+            - Standard monitoring protocols should be maintained
+            - Please consider clinical context and additional risk factors in decision-making
             """)
         
-        # 输入特征回顾
-        st.subheader("📝 输入特征回顾:")
+        # Input feature review
+        st.subheader("📝 Input Parameter Summary:")
         
-        # 创建特征表格
+        # Create feature table
         feature_df = pd.DataFrame({
-            '特征名称': feature_names,
-            '输入值': [feature_values[name] for name in feature_names],
-            '数据类型': [feature_ranges[name]['type'] for name in feature_names]
+            'Clinical Parameter': feature_names,
+            'Input Value': [feature_values[name] for name in feature_names],
+            'Data Type': [feature_ranges[name]['type'] for name in feature_names]
         })
         
         st.dataframe(feature_df, use_container_width=True)
 
     except Exception as e:
-        st.error(f"❌ 预测过程中发生错误: {e}")
-        st.info("请检查输入值是否正确，或联系管理员")
+        st.error(f"❌ An error occurred during prediction: {e}")
+        st.info("Please verify input values are correct or contact the system administrator.")
 
-# 添加页脚信息
+# Add footer information
 st.markdown("---")
-st.markdown("*本预测模型仅供医学研究参考，不能替代专业医疗诊断*")
+st.markdown("*This prediction model is for medical research purposes only and should not replace professional clinical judgment*")
