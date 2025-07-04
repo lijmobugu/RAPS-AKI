@@ -79,35 +79,5 @@ for feature, properties in feature_ranges.items():
 # 转换为模型输入格式
 features = pd.DataFrame([feature_values], columns=feature_names)
 
-# 预测与 SHAP 可视化
-if st.button("Predict"):
-    try:
-        # 模型预测
-        predicted_class = model.predict(features)[0]
-        predicted_proba = model.predict_proba(features)[0]
 
-        # 提取预测的类别概率
-        probability = predicted_proba[predicted_class] * 100
-
-        # 显示预测结果
-        st.subheader("Prediction Result:")
-        st.write(f"Predicted possibility of AKI is **{probability:.2f}%**")
-
-        # 计算 SHAP 值并生成力图
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(features)
-
-        # 绘制 SHAP 力图
-        shap.force_plot(
-            explainer.expected_value,
-            shap_values[0],  # 对第一个样本的 SHAP 值
-            features,
-            matplotlib=True
-        )
-        plt.savefig("shap_force_plot.png", bbox_inches="tight", dpi=300)
-
-        # 在 Streamlit 中显示图片
-        st.image("shap_force_plot.png", caption="SHAP Force Plot", use_column_width=True)
-
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+st.error(f"An error occurred: {e}")
