@@ -1,39 +1,16 @@
 import streamlit as st
-# 基础库
-import numpy as np
 import pandas as pd
+import numpy as np
+import joblib
+from sklearn.ensemble import StackingClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+# 暂时注释掉这些可能有问题的导入
+# from catboost import CatBoostClassifier
+# from xgboost import XGBClassifier
+# from lightgbm import LGBMClassifier
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-# 机器学习库
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.feature_selection import SelectFromModel, RFE, mutual_info_classif
-from sklearn.metrics import roc_auc_score, make_scorer
-
-# 分类算法
-from sklearn.linear_model import LogisticRegression
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import (RandomForestClassifier, GradientBoostingClassifier,
-                              AdaBoostClassifier)
-from sklearn.neural_network import MLPClassifier
-from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
-
-from sklearn.feature_selection import SelectKBest, mutual_info_classif, RFE
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.feature_selection import SelectFromModel
-
-import joblib
-import logging
-import warnings
-
 # 加载模型
 try:
     model = joblib.load('final_stacking_model.pkl')
