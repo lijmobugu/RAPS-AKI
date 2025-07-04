@@ -34,11 +34,8 @@ import logging
 import warnings
 
 # 加载模型
-try:
-    model = joblib.load('final_stacking_model.pkl')
-except FileNotFoundError:
-    st.error("Model file 'final_stacking_model.pkl' not found. Please upload the model file.")
-    st.stop()
+model = joblib.load('final_stacking_model.pkl')
+
 
 # 特征范围定义
 feature_names = [
