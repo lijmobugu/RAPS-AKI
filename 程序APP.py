@@ -22,7 +22,6 @@ from sklearn.ensemble import (RandomForestClassifier, GradientBoostingClassifier
                               AdaBoostClassifier)
 from sklearn.neural_network import MLPClassifier
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
 from catboost import CatBoostClassifier
 
 from sklearn.feature_selection import SelectKBest, mutual_info_classif, RFE
