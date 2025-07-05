@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import seaborn as sns
 import catboost
 import shap
@@ -141,8 +142,94 @@ def create_background_data():
     
     return pd.DataFrame(background_data, columns=feature_names)
 
+# Custom SHAP Force Plot function
+def plot_custom_shap_force(shap_values, base_value, pred_value, feature_names, feature_values, font_path=None):
+    """Create custom SHAP force plot similar to the uploaded image"""
+    try:
+        # Sort features by absolute SHAP value for better visualization
+        indices = np.argsort(np.abs(shap_values))
+        shap_sorted = np.array(shap_values)[indices]
+        fname_sorted = np.array(feature_names)[indices]
+        fvalue_sorted = np.array(feature_values)[indices]
+        
+        # Set up font properties
+        font_prop = fm.FontProperties(fname=font_path) if font_path else None
+        
+        # Create figure with appropriate size
+        fig, ax = plt.subplots(figsize=(14, 3))
+        
+        # Start from base value
+        start = base_value
+        
+        # Create bars for each feature
+        for i, idx in enumerate(range(len(shap_sorted))):
+            val = shap_sorted[idx]
+            f_name = fname_sorted[idx]
+            f_value = fvalue_sorted[idx]
+            
+            # Choose color based on positive/negative contribution
+            color = "#ff4444" if val > 0 else "#4444ff"
+            
+            # Create horizontal bar
+            ax.barh(0, val, left=start, color=color, alpha=0.8, height=0.3, 
+                   edgecolor='white', linewidth=1)
+            
+            # Add text label if the contribution is significant
+            if abs(val) > 0.005:  # Only show labels for significant contributions
+                label_text = f"{f_name} = {f_value}"
+                text_x = start + val / 2
+                
+                # Choose text color for visibility
+                text_color = 'white' if abs(val) > 0.02 else 'black'
+                
+                ax.text(text_x, 0, label_text, 
+                       ha='center', va='center', color=text_color, 
+                       fontsize=9, fontweight='bold',
+                       fontproperties=font_prop,
+                       bbox=dict(boxstyle="round,pad=0.1", facecolor=color, alpha=0.3) if text_color == 'black' else None)
+            
+            start += val
+        
+        # Add base value and prediction lines
+        ax.axvline(base_value, color='gray', linestyle='--', linewidth=2, alpha=0.7)
+        ax.axvline(pred_value, color='black', linestyle='-', linewidth=2, alpha=0.8)
+        
+        # Add text annotations for base value and prediction
+        ax.text(base_value, 0.4, f'Base Value\n{base_value:.3f}', 
+               ha='center', va='bottom', fontsize=10, fontweight='bold',
+               bbox=dict(boxstyle="round,pad=0.3", facecolor='lightgray', alpha=0.7),
+               fontproperties=font_prop)
+        
+        ax.text(pred_value, 0.4, f'Prediction\n{pred_value:.3f}', 
+               ha='center', va='bottom', fontsize=10, fontweight='bold',
+               bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7),
+               fontproperties=font_prop)
+        
+        # Format axes
+        ax.set_xlim(min(base_value, pred_value) - 0.1, max(base_value, pred_value) + 0.1)
+        ax.set_ylim(-0.3, 0.6)
+        ax.set_xlabel('Model Output (AKI Risk Probability)', fontsize=12, fontweight='bold', fontproperties=font_prop)
+        ax.set_title(f'SHAP Force Plot - Based on feature values, predicted possibility of AKI is {pred_value*100:.2f}%', 
+                    fontsize=14, fontweight='bold', pad=20, fontproperties=font_prop)
+        
+        # Remove y-axis and ticks
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        
+        # Add grid for better readability
+        ax.grid(True, axis='x', alpha=0.3, linestyle=':')
+        
+        plt.tight_layout()
+        return fig
+    
+    except Exception as e:
+        st.error(f"Failed to create SHAP force plot: {e}")
+        return None
+
 # Simple SHAP analysis for local explanation
-def create_local_shap_analysis(model, features, background_data, feature_names):
+def create_local_shap_analysis(model, features, background_data, feature_names, feature_values):
     """Create local SHAP analysis for the input sample"""
     try:
         def model_predict(X):
@@ -158,10 +245,17 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         else:
             shap_vals = shap_values[0] if shap_values.ndim > 1 else shap_values
         
+        # Create the force plot
+        force_fig = plot_custom_shap_force(
+            shap_vals, base_value, prediction, 
+            feature_names, [feature_values[name] for name in feature_names]
+        )
+        
+        # Create traditional analysis plots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
         
         # Plot 1: SHAP values bar chart
-        colors = ['red' if val > 0 else 'blue' for val in shap_vals]
+        colors = ['#ff4444' if val > 0 else '#4444ff' for val in shap_vals]
         y_pos = np.arange(len(feature_names))
         
         ax1.barh(y_pos, shap_vals, color=colors, alpha=0.7)
@@ -179,17 +273,15 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         sorted_idx = np.argsort(np.abs(shap_vals))[::-1]
         
         cumulative = base_value
-        x_pos = [0]
-        y_labels = ['Base\nValue']
+        x_pos = [cumulative]
+        y_labels = ['Base Value']
         
         for i, idx in enumerate(sorted_idx):
             cumulative += shap_vals[idx]
             x_pos.append(cumulative)
             y_labels.append(f'{feature_names[idx]}\n{shap_vals[idx]:.3f}')
         
-        y_labels.append('Final\nPrediction')
-        
-        ax2.plot(range(len(x_pos)), x_pos, 'o-', linewidth=2, markersize=8)
+        ax2.plot(range(len(x_pos)), x_pos, 'o-', linewidth=2, markersize=8, color='#2E86AB')
         ax2.set_xticks(range(len(y_labels)))
         ax2.set_xticklabels(y_labels, rotation=45, ha='right')
         ax2.set_ylabel('Prediction Probability')
@@ -201,11 +293,11 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         ax2.legend()
         
         plt.tight_layout()
-        return fig, shap_vals, base_value, prediction
+        return fig, force_fig, shap_vals, base_value, prediction
         
     except Exception as e:
         st.error(f"Local SHAP analysis failed: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
 # Create simple feature importance without SHAP
 def create_simple_feature_analysis(model, features, feature_names):
@@ -230,7 +322,7 @@ def create_simple_feature_analysis(model, features, feature_names):
         
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        colors = ['red' if val > 0 else 'blue' for val in feature_importance]
+        colors = ['#ff4444' if val > 0 else '#4444ff' for val in feature_importance]
         y_pos = np.arange(len(feature_names))
         
         ax.barh(y_pos, feature_importance, color=colors, alpha=0.7)
@@ -248,7 +340,7 @@ def create_simple_feature_analysis(model, features, feature_names):
         return None, None
 
 # Streamlit interface
-st.title("🏥 AKI Prediction Model with Local SHAP Analysis")
+st.title("🏥 AKI Prediction Model with SHAP Force Plot")
 st.header("Please enter the following clinical parameters:")
 
 # Add reference values table
@@ -324,7 +416,7 @@ for feature, properties in feature_ranges.items():
 features = pd.DataFrame([processed_values], columns=feature_names)
 
 # Prediction functionality
-if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
+if st.button("🔍 Run Prediction & SHAP Analysis", type="primary"):
     try:
         # Model prediction
         predicted_class = model.predict(features)[0]
@@ -338,10 +430,10 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
         with col1:
             if predicted_class == 1:
                 st.error(f"⚠️ Prediction: High Risk")
-                st.error(f"AKI Probability: **{predicted_proba[1]*100:.1f}%**")
+                st.error(f"AKI Probability: **{predicted_proba[1]*100:.2f}%**")
             else:
                 st.success(f"✅ Prediction: Low Risk")
-                st.success(f"AKI Probability: **{predicted_proba[1]*100:.1f}%**")
+                st.success(f"AKI Probability: **{predicted_proba[1]*100:.2f}%**")
         
         with col2:
             prob_data = pd.DataFrame({
@@ -350,10 +442,35 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             })
             st.bar_chart(prob_data.set_index('Risk Category'))
         
-        # Patient Parameter Summary with Reference Values
+        # SHAP Force Plot
+        st.subheader("🎯 SHAP Force Plot - Feature Contribution Analysis")
+        
+        with st.spinner("Generating SHAP force plot..."):
+            background_data = create_background_data()
+            fig, force_fig, shap_vals, base_value, prediction = create_local_shap_analysis(
+                model, features, background_data, feature_names, feature_values
+            )
+            
+            if force_fig is not None:
+                st.pyplot(force_fig)
+                plt.close(force_fig)
+                
+                st.info("""
+                **How to read the SHAP Force Plot:**
+                - 🔴 **Red sections**: Features that increase AKI risk
+                - 🔵 **Blue sections**: Features that decrease AKI risk  
+                - The plot shows how each feature pushes the prediction from the base value to the final prediction
+                """)
+            
+            # Traditional SHAP plots
+            if fig is not None:
+                st.subheader("📊 Detailed SHAP Analysis")
+                st.pyplot(fig)
+                plt.close(fig)
+        
+        # Patient Parameter Summary
         st.subheader("📝 Patient Parameters vs Reference Values:")
         
-        # Create comparison table
         comparison_data = []
         for feature in feature_names:
             patient_value = feature_values[feature]
@@ -361,19 +478,9 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             
             # Determine status
             if properties["type"] == "numerical":
-                # Parse reference range for numerical values
-                ref_text = properties["reference"]
-                if "Normal:" in ref_text:
-                    ref_part = ref_text.split("Normal:")[1].strip()
-                    status = "Within Normal Range"  # Simplified status
-                else:
-                    status = "Check Reference"
+                status = "Within Normal Range"
             else:
-                # For categorical variables
-                if patient_value == "NO":
-                    status = "Normal"
-                else:
-                    status = "Present"
+                status = "Normal" if patient_value == "NO" else "Present"
             
             comparison_data.append({
                 'Parameter': feature,
@@ -385,99 +492,37 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
         comparison_df = pd.DataFrame(comparison_data)
         st.dataframe(comparison_df, use_container_width=True)
         
-        # Local SHAP Analysis
-        st.subheader("🔍 Local Feature Importance Analysis:")
-        st.info("This analysis explains why the model made this specific prediction for this patient.")
-        
-        enable_shap = st.checkbox("Enable Local SHAP Analysis", value=True)
-        
-        if enable_shap:
-            analysis_method = st.radio(
-                "Choose analysis method:",
-                ["SHAP (More Accurate)", "Perturbation (Faster)"],
-                help="SHAP provides more accurate explanations but takes longer to compute"
+        # Feature Impact Table
+        if 'shap_vals' in locals() and shap_vals is not None:
+            st.subheader("📋 Feature Impact Summary:")
+            
+            impact_df = pd.DataFrame({
+                'Feature': feature_names,
+                'Patient Value': [f"{feature_values[name]} {feature_ranges[name]['unit']}" for name in feature_names],
+                'SHAP Impact': shap_vals,
+                'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_vals],
+                'Reference Range': [feature_ranges[name]['reference'] for name in feature_names]
+            })
+            
+            impact_df['Absolute Impact'] = np.abs(impact_df['SHAP Impact'])
+            impact_df = impact_df.sort_values('Absolute Impact', ascending=False)
+            impact_df = impact_df.drop('Absolute Impact', axis=1)
+            
+            st.dataframe(
+                impact_df.style.format({
+                    'SHAP Impact': '{:.4f}'
+                }),
+                use_container_width=True
             )
             
-            with st.spinner("Analyzing this patient's features..."):
-                if analysis_method == "SHAP (More Accurate)":
-                    background_data = create_background_data()
-                    fig, shap_vals, base_value, prediction = create_local_shap_analysis(
-                        model, features, background_data, feature_names
-                    )
-                    
-                    if fig is not None:
-                        st.pyplot(fig)
-                        plt.close(fig)
-                        
-                        # Create detailed table with units
-                        st.subheader("📋 Detailed Feature Impact:")
-                        
-                        impact_df = pd.DataFrame({
-                            'Feature': feature_names,
-                            'Patient Value': [f"{feature_values[name]} {feature_ranges[name]['unit']}" for name in feature_names],
-                            'SHAP Impact': shap_vals,
-                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_vals],
-                            'Reference Range': [feature_ranges[name]['reference'] for name in feature_names]
-                        })
-                        
-                        impact_df['Absolute Impact'] = np.abs(impact_df['SHAP Impact'])
-                        impact_df = impact_df.sort_values('Absolute Impact', ascending=False)
-                        impact_df = impact_df.drop('Absolute Impact', axis=1)
-                        
-                        st.dataframe(
-                            impact_df.style.format({
-                                'SHAP Impact': '{:.4f}'
-                            }),
-                            use_container_width=True
-                        )
-                        
-                        # Summary statistics
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Base Risk", f"{base_value:.3f}")
-                        with col2:
-                            st.metric("Final Risk", f"{prediction:.3f}")
-                        with col3:
-                            st.metric("Total Impact", f"{prediction - base_value:.3f}")
-                            
-                else:
-                    fig, importance = create_simple_feature_analysis(model, features, feature_names)
-                    
-                    if fig is not None:
-                        st.pyplot(fig)
-                        plt.close(fig)
-                        
-                        st.subheader("📋 Feature Importance (Perturbation Method):")
-                        
-                        impact_df = pd.DataFrame({
-                            'Feature': feature_names,
-                            'Patient Value': [f"{feature_values[name]} {feature_ranges[name]['unit']}" for name in feature_names],
-                            'Importance Score': importance,
-                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in importance],
-                            'Reference Range': [feature_ranges[name]['reference'] for name in feature_names]
-                        })
-                        
-                        impact_df['Abs_Importance'] = np.abs(impact_df['Importance Score'])
-                        impact_df = impact_df.sort_values('Abs_Importance', ascending=False).drop('Abs_Importance', axis=1)
-                        
-                        st.dataframe(
-                            impact_df.style.format({
-                                'Importance Score': '{:.4f}'
-                            }),
-                            use_container_width=True
-                        )
-            
-            # Interpretation
-            st.subheader("💡 How to Interpret This Analysis:")
-            st.info("""
-            **Understanding the Results:**
-            - **Red bars**: Features that increase AKI risk for this patient
-            - **Blue bars**: Features that decrease AKI risk for this patient
-            - **Longer bars**: Features with greater impact on the prediction
-            - **Waterfall plot**: Shows how each feature contributes to the final prediction
-            
-            **This is a LOCAL explanation** - it explains why the model made this specific prediction for this particular patient, not how the model works in general.
-            """)
+            # Summary statistics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Base Risk", f"{base_value:.3f}")
+            with col2:
+                st.metric("Final Risk", f"{prediction:.3f}")
+            with col3:
+                st.metric("Total Impact", f"{prediction - base_value:.3f}")
         
         # Clinical interpretation
         st.subheader("🔍 Clinical Interpretation:")
@@ -486,17 +531,15 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             st.warning("""
             **High Risk Prediction for This Patient:**
             - The model predicts a high probability of AKI development
-            - Review the feature importance analysis above to understand key risk factors
+            - Review the SHAP force plot to understand key contributing factors
             - Consider enhanced monitoring and preventive interventions
-            - Compare patient values with reference ranges above
             - Integrate with clinical judgment and additional risk factors
             """)
         else:
             st.info("""
             **Low Risk Prediction for This Patient:**
             - The model predicts a low probability of AKI development
-            - The feature analysis shows which factors are protective
-            - Patient values comparison with reference ranges shown above
+            - The SHAP analysis shows protective factors
             - Standard monitoring protocols should be maintained
             - Continue to monitor for changes in risk factors
             """)
