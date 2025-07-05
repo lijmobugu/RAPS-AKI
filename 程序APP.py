@@ -28,7 +28,7 @@ feature_names = [
 ]
 
 feature_ranges = {
-    "Age": {"type": "numerical", "min": 0, "max": 200, "default": 50},
+    "Age": {"type": "numerical", "min": 18, "max": 80, "default": 50},
     "Diabetes": {"type": "categorical", "options": ["YES", "NO"]},
     "AST/ALT(DRR)": {"type": "numerical", "min": 0, "max": 10, "default": 1.0},
     "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 10, "default": 1.0},
