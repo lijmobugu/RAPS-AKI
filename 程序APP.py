@@ -35,14 +35,12 @@ feature_ranges = {
         "max": 80, 
         "default": 50,
         "unit": "years",
-        "reference": "Adult: 18-80 years",
-        "description": "Patient's age at time of surgery"
+        "reference": "Adult: 18-80 years"
     },
     "Diabetes": {
         "type": "categorical", 
         "options": ["YES", "NO"],
         "unit": "Category",
-        "reference": "NO: Normal glucose metabolism",
         "description": "Presence of diabetes mellitus"
     },
     "AST/ALT(DRR)": {
@@ -84,9 +82,7 @@ feature_ranges = {
     "Estimated Blood Loss (EBL) > 300 mL": {
         "type": "categorical", 
         "options": ["YES", "NO"],
-        "unit": "Category",
-        "reference": "NO: EBL ≤ 300 mL (Low risk)",
-        "description": "Estimated intraoperative blood loss exceeding 300 mL"
+        "unit": "Category"
     },
     "eGFR": {
         "type": "numerical", 
