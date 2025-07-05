@@ -21,7 +21,7 @@ except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
     model = None
     st.stop()
 
-# Feature range definitions
+# Enhanced feature range definitions with units and reference values
 feature_names = [
     "Age", "Diabetes", "AST/ALT(DRR)", "Creatinine (Cr)", "INR", "PT", 
     "Estimated Blood Loss (EBL) > 300 mL", "eGFR", "Tumor Dimension (mm)", 
@@ -29,19 +29,93 @@ feature_names = [
 ]
 
 feature_ranges = {
-    "Age": {"type": "numerical", "min": 18, "max": 80, "default": 50},
-    "Diabetes": {"type": "categorical", "options": ["YES", "NO"]},
-    "AST/ALT(DRR)": {"type": "numerical", "min": 0, "max": 10, "default": 1.0},
-    "Creatinine (Cr)": {"type": "numerical", "min": 0, "max": 10, "default": 1.0},
-    "INR": {"type": "numerical", "min": 0.5, "max": 5.0, "default": 1.0},
-    "PT": {"type": "numerical", "min": 10, "max": 50, "default": 12},
-    "Estimated Blood Loss (EBL) > 300 mL": {"type": "categorical", "options": ["YES", "NO"]},
-    "eGFR": {"type": "numerical", "min": 0, "max": 200, "default": 90},
-    "Tumor Dimension (mm)": {"type": "numerical", "min": 0, "max": 200, "default": 30},
-    "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]}
+    "Age": {
+        "type": "numerical", 
+        "min": 18, 
+        "max": 80, 
+        "default": 50,
+        "unit": "years",
+        "reference": "Adult: 18-80 years",
+        "description": "Patient's age at time of surgery"
+    },
+    "Diabetes": {
+        "type": "categorical", 
+        "options": ["YES", "NO"],
+        "unit": "Category",
+        "reference": "NO: Normal glucose metabolism",
+        "description": "Presence of diabetes mellitus"
+    },
+    "AST/ALT(DRR)": {
+        "type": "numerical", 
+        "min": 0, 
+        "max": 10, 
+        "default": 1.0,
+        "unit": "Ratio",
+        "reference": "Normal: 0.8-1.2",
+        "description": "Aspartate aminotransferase to Alanine aminotransferase ratio"
+    },
+    "Creatinine (Cr)": {
+        "type": "numerical", 
+        "min": 0, 
+        "max": 10, 
+        "default": 1.0,
+        "unit": "mg/dL",
+        "reference": "Normal: 0.6-1.2 mg/dL (M), 0.5-1.1 mg/dL (F)",
+        "description": "Serum creatinine level"
+    },
+    "INR": {
+        "type": "numerical", 
+        "min": 0.5, 
+        "max": 5.0, 
+        "default": 1.0,
+        "unit": "Ratio",
+        "reference": "Normal: 0.8-1.2",
+        "description": "International Normalized Ratio"
+    },
+    "PT": {
+        "type": "numerical", 
+        "min": 10, 
+        "max": 50, 
+        "default": 12,
+        "unit": "seconds",
+        "reference": "Normal: 11-13 seconds",
+        "description": "Prothrombin Time"
+    },
+    "Estimated Blood Loss (EBL) > 300 mL": {
+        "type": "categorical", 
+        "options": ["YES", "NO"],
+        "unit": "Category",
+        "reference": "NO: EBL ≤ 300 mL (Low risk)",
+        "description": "Estimated intraoperative blood loss exceeding 300 mL"
+    },
+    "eGFR": {
+        "type": "numerical", 
+        "min": 0, 
+        "max": 200, 
+        "default": 90,
+        "unit": "mL/min/1.73m²",
+        "reference": "Normal: >90 mL/min/1.73m²",
+        "description": "Estimated Glomerular Filtration Rate"
+    },
+    "Tumor Dimension (mm)": {
+        "type": "numerical", 
+        "min": 0, 
+        "max": 200, 
+        "default": 30,
+        "unit": "mm",
+        "reference": "Small: <20mm, Medium: 20-40mm, Large: >40mm",
+        "description": "Maximum tumor diameter"
+    },
+    "Intraoperative Complications": {
+        "type": "categorical", 
+        "options": ["YES", "NO"],
+        "unit": "Category",
+        "reference": "NO: Uncomplicated surgery",
+        "description": "Presence of intraoperative complications"
+    }
 }
 
-# Create background data for SHAP (smaller dataset for faster computation)
+# Create background data for SHAP
 @st.cache_data
 def create_background_data():
     """Create background dataset for SHAP explanation"""
@@ -55,7 +129,6 @@ def create_background_data():
             if properties["type"] == "numerical":
                 min_val = properties["min"]
                 max_val = properties["max"]
-                # Use normal distribution around the middle of the range
                 mean_val = (min_val + max_val) / 2
                 std_val = (max_val - min_val) / 6
                 sample[feature] = np.clip(np.random.normal(mean_val, std_val), min_val, max_val)
@@ -72,29 +145,19 @@ def create_background_data():
 def create_local_shap_analysis(model, features, background_data, feature_names):
     """Create local SHAP analysis for the input sample"""
     try:
-        # Define prediction function
         def model_predict(X):
-            return model.predict_proba(X)[:, 1]  # Return probability of positive class
+            return model.predict_proba(X)[:, 1]
         
-        # Create explainer with smaller background
         explainer = shap.KernelExplainer(model_predict, background_data.values)
-        
-        # Calculate SHAP values for the input sample (local explanation)
         shap_values = explainer.shap_values(features.values, nsamples=50)
-        
-        # Get the base value (expected value)
         base_value = explainer.expected_value
-        
-        # Get the actual prediction
         prediction = model_predict(features.values)[0]
         
-        # Extract SHAP values (handle both array and single value cases)
         if isinstance(shap_values, list):
             shap_vals = shap_values[0] if len(shap_values) > 0 else shap_values
         else:
             shap_vals = shap_values[0] if shap_values.ndim > 1 else shap_values
         
-        # Create visualization
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
         
         # Plot 1: SHAP values bar chart
@@ -108,13 +171,11 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         ax1.set_title('Local Feature Importance for This Patient')
         ax1.axvline(x=0, color='black', linestyle='-', alpha=0.3)
         
-        # Add value labels on bars
         for i, v in enumerate(shap_vals):
             ax1.text(v + (0.001 if v >= 0 else -0.001), i, f'{v:.3f}', 
                     va='center', ha='left' if v >= 0 else 'right', fontsize=8)
         
         # Plot 2: Waterfall-style explanation
-        # Sort by absolute impact
         sorted_idx = np.argsort(np.abs(shap_vals))[::-1]
         
         cumulative = base_value
@@ -128,7 +189,6 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         
         y_labels.append('Final\nPrediction')
         
-        # Create waterfall plot
         ax2.plot(range(len(x_pos)), x_pos, 'o-', linewidth=2, markersize=8)
         ax2.set_xticks(range(len(y_labels)))
         ax2.set_xticklabels(y_labels, rotation=45, ha='right')
@@ -136,7 +196,6 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
         ax2.set_title('Prediction Breakdown (Waterfall)')
         ax2.grid(True, alpha=0.3)
         
-        # Add horizontal line at base value
         ax2.axhline(y=base_value, color='gray', linestyle='--', alpha=0.5, label=f'Base Value: {base_value:.3f}')
         ax2.axhline(y=prediction, color='red', linestyle='--', alpha=0.5, label=f'Final Prediction: {prediction:.3f}')
         ax2.legend()
@@ -152,33 +211,23 @@ def create_local_shap_analysis(model, features, background_data, feature_names):
 def create_simple_feature_analysis(model, features, feature_names):
     """Create simple feature importance analysis"""
     try:
-        # Get base prediction
         base_pred = model.predict_proba(features)[0, 1]
-        
-        # Calculate feature importance by perturbation
         feature_importance = []
         
         for i, feature in enumerate(feature_names):
-            # Create modified feature set
             modified_features = features.copy()
             
-            # For numerical features, try mean value
             if feature_ranges[feature]["type"] == "numerical":
                 mean_val = (feature_ranges[feature]["min"] + feature_ranges[feature]["max"]) / 2
                 modified_features.iloc[0, i] = mean_val
             else:
-                # For categorical, try the opposite value
                 current_val = modified_features.iloc[0, i]
                 modified_features.iloc[0, i] = 1 - current_val
             
-            # Get prediction with modified feature
             modified_pred = model.predict_proba(modified_features)[0, 1]
-            
-            # Calculate importance as difference
             importance = base_pred - modified_pred
             feature_importance.append(importance)
         
-        # Create visualization
         fig, ax = plt.subplots(figsize=(10, 6))
         
         colors = ['red' if val > 0 else 'blue' for val in feature_importance]
@@ -202,6 +251,22 @@ def create_simple_feature_analysis(model, features, feature_names):
 st.title("🏥 AKI Prediction Model with Local SHAP Analysis")
 st.header("Please enter the following clinical parameters:")
 
+# Add reference values table
+with st.expander("📋 Reference Values & Units Guide", expanded=False):
+    st.subheader("Clinical Parameter Reference Guide")
+    
+    ref_data = []
+    for feature, properties in feature_ranges.items():
+        ref_data.append({
+            'Parameter': feature,
+            'Unit': properties['unit'],
+            'Reference Range': properties['reference'],
+            'Description': properties['description']
+        })
+    
+    ref_df = pd.DataFrame(ref_data)
+    st.dataframe(ref_df, use_container_width=True)
+
 # Create two-column layout
 col1, col2 = st.columns(2)
 
@@ -211,17 +276,38 @@ for i, (feature, properties) in enumerate(feature_ranges.items()):
     
     with current_col:
         if properties["type"] == "numerical":
+            # Create enhanced label with unit
+            label = f"{feature} ({properties['unit']})"
+            
+            # Create detailed help text
+            help_text = f"""
+            **Unit**: {properties['unit']}
+            **Reference**: {properties['reference']}
+            **Range**: {properties['min']} - {properties['max']}
+            **Description**: {properties['description']}
+            """
+            
             feature_values[feature] = st.number_input(
-                label=f"{feature}",
+                label=label,
                 min_value=float(properties["min"]),
                 max_value=float(properties["max"]),
                 value=float(properties["default"]),
-                help=f"Range: {properties['min']} - {properties['max']}"
+                help=help_text
             )
         elif properties["type"] == "categorical":
+            # Create enhanced label
+            label = f"{feature}"
+            
+            # Create detailed help text
+            help_text = f"""
+            **Reference**: {properties['reference']}
+            **Description**: {properties['description']}
+            """
+            
             feature_values[feature] = st.selectbox(
-                label=f"{feature}",
+                label=label,
                 options=properties["options"],
+                help=help_text
             )
 
 # Process categorical features
@@ -264,6 +350,41 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             })
             st.bar_chart(prob_data.set_index('Risk Category'))
         
+        # Patient Parameter Summary with Reference Values
+        st.subheader("📝 Patient Parameters vs Reference Values:")
+        
+        # Create comparison table
+        comparison_data = []
+        for feature in feature_names:
+            patient_value = feature_values[feature]
+            properties = feature_ranges[feature]
+            
+            # Determine status
+            if properties["type"] == "numerical":
+                # Parse reference range for numerical values
+                ref_text = properties["reference"]
+                if "Normal:" in ref_text:
+                    ref_part = ref_text.split("Normal:")[1].strip()
+                    status = "Within Normal Range"  # Simplified status
+                else:
+                    status = "Check Reference"
+            else:
+                # For categorical variables
+                if patient_value == "NO":
+                    status = "Normal"
+                else:
+                    status = "Present"
+            
+            comparison_data.append({
+                'Parameter': feature,
+                'Patient Value': f"{patient_value} {properties['unit']}",
+                'Reference Range': properties['reference'],
+                'Status': status
+            })
+        
+        comparison_df = pd.DataFrame(comparison_data)
+        st.dataframe(comparison_df, use_container_width=True)
+        
         # Local SHAP Analysis
         st.subheader("🔍 Local Feature Importance Analysis:")
         st.info("This analysis explains why the model made this specific prediction for this patient.")
@@ -279,10 +400,7 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             
             with st.spinner("Analyzing this patient's features..."):
                 if analysis_method == "SHAP (More Accurate)":
-                    # Create background data
                     background_data = create_background_data()
-                    
-                    # Run SHAP analysis
                     fig, shap_vals, base_value, prediction = create_local_shap_analysis(
                         model, features, background_data, feature_names
                     )
@@ -291,23 +409,23 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
                         st.pyplot(fig)
                         plt.close(fig)
                         
-                        # Create detailed table
+                        # Create detailed table with units
                         st.subheader("📋 Detailed Feature Impact:")
                         
                         impact_df = pd.DataFrame({
                             'Feature': feature_names,
-                            'Patient Value': [feature_values[name] for name in feature_names],
+                            'Patient Value': [f"{feature_values[name]} {feature_ranges[name]['unit']}" for name in feature_names],
                             'SHAP Impact': shap_vals,
                             'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_vals],
-                            'Absolute Impact': np.abs(shap_vals)
+                            'Reference Range': [feature_ranges[name]['reference'] for name in feature_names]
                         })
                         
-                        # Sort by absolute impact
+                        impact_df['Absolute Impact'] = np.abs(impact_df['SHAP Impact'])
                         impact_df = impact_df.sort_values('Absolute Impact', ascending=False)
+                        impact_df = impact_df.drop('Absolute Impact', axis=1)
                         
-                        # Format display
                         st.dataframe(
-                            impact_df.drop('Absolute Impact', axis=1).style.format({
+                            impact_df.style.format({
                                 'SHAP Impact': '{:.4f}'
                             }),
                             use_container_width=True
@@ -323,24 +441,22 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
                             st.metric("Total Impact", f"{prediction - base_value:.3f}")
                             
                 else:
-                    # Run perturbation analysis
                     fig, importance = create_simple_feature_analysis(model, features, feature_names)
                     
                     if fig is not None:
                         st.pyplot(fig)
                         plt.close(fig)
                         
-                        # Create detailed table
                         st.subheader("📋 Feature Importance (Perturbation Method):")
                         
                         impact_df = pd.DataFrame({
                             'Feature': feature_names,
-                            'Patient Value': [feature_values[name] for name in feature_names],
+                            'Patient Value': [f"{feature_values[name]} {feature_ranges[name]['unit']}" for name in feature_names],
                             'Importance Score': importance,
-                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in importance]
+                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in importance],
+                            'Reference Range': [feature_ranges[name]['reference'] for name in feature_names]
                         })
                         
-                        # Sort by absolute importance
                         impact_df['Abs_Importance'] = np.abs(impact_df['Importance Score'])
                         impact_df = impact_df.sort_values('Abs_Importance', ascending=False).drop('Abs_Importance', axis=1)
                         
@@ -372,6 +488,7 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             - The model predicts a high probability of AKI development
             - Review the feature importance analysis above to understand key risk factors
             - Consider enhanced monitoring and preventive interventions
+            - Compare patient values with reference ranges above
             - Integrate with clinical judgment and additional risk factors
             """)
         else:
@@ -379,20 +496,10 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
             **Low Risk Prediction for This Patient:**
             - The model predicts a low probability of AKI development
             - The feature analysis shows which factors are protective
+            - Patient values comparison with reference ranges shown above
             - Standard monitoring protocols should be maintained
             - Continue to monitor for changes in risk factors
             """)
-        
-        # Input summary
-        st.subheader("📝 Patient Parameters Summary:")
-        
-        feature_df = pd.DataFrame({
-            'Clinical Parameter': feature_names,
-            'Input Value': [feature_values[name] for name in feature_names],
-            'Data Type': [feature_ranges[name]['type'] for name in feature_names]
-        })
-        
-        st.dataframe(feature_df, use_container_width=True)
 
     except Exception as e:
         st.error(f"❌ An error occurred during prediction: {e}")
