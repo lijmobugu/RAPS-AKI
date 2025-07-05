@@ -70,24 +70,24 @@ def create_background_data():
 
 # SHAP explanation functions
 @st.cache_resource
-def create_shap_explainer(model, background_data):
+def create_shap_explainer(_model, _background_data):
     """Create SHAP explainer for StackingClassifier"""
     try:
         # Use KernelExplainer for StackingClassifier
         def model_predict(X):
-            return model.predict_proba(X)[:, 1]  # Return probability of positive class
+            return _model.predict_proba(X)[:, 1]  # Return probability of positive class
         
-        explainer = shap.KernelExplainer(model_predict, background_data.values)
+        explainer = shap.KernelExplainer(model_predict, _background_data.values)
         return explainer
     except Exception as e:
         st.error(f"Failed to create SHAP explainer: {e}")
         return None
 
-def generate_shap_explanation(explainer, features, feature_names):
+def generate_shap_explanation(explainer, features, feature_names, expected_value=0.5):
     """Generate SHAP values and create visualizations"""
     try:
         if explainer is None:
-            return None, None
+            return None, None, None
         
         # Calculate SHAP values (this may take some time)
         shap_values = explainer.shap_values(features.values, nsamples=100)
@@ -125,6 +125,42 @@ def generate_shap_explanation(explainer, features, feature_names):
     except Exception as e:
         st.error(f"Failed to generate SHAP explanation: {e}")
         return None, None, None
+
+# Alternative simple SHAP function (if caching fails)
+def create_simple_shap_analysis(model, features, background_data, feature_names):
+    """Simple SHAP analysis without caching"""
+    try:
+        # Define prediction function
+        def model_predict(X):
+            return model.predict_proba(X)[:, 1]
+        
+        # Create explainer
+        explainer = shap.KernelExplainer(model_predict, background_data.values)
+        
+        # Calculate SHAP values
+        shap_values = explainer.shap_values(features.values, nsamples=50)
+        
+        # Create simple bar plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Get feature importance
+        importance = np.abs(shap_values[0])
+        sorted_idx = np.argsort(importance)[::-1]
+        
+        # Create horizontal bar plot
+        y_pos = np.arange(len(feature_names))
+        ax.barh(y_pos, importance[sorted_idx], color=['red' if shap_values[0][i] > 0 else 'blue' for i in sorted_idx])
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels([feature_names[i] for i in sorted_idx])
+        ax.set_xlabel('SHAP Value (Impact on Prediction)')
+        ax.set_title('Feature Importance - SHAP Analysis')
+        
+        plt.tight_layout()
+        return fig, shap_values
+        
+    except Exception as e:
+        st.error(f"Simple SHAP analysis failed: {e}")
+        return None, None
 
 # Streamlit interface
 st.title("🏥 AKI Prediction Model with SHAP Explanations")
@@ -218,33 +254,67 @@ if st.button("🔍 Run Prediction & Analysis", type="primary"):
                 # Create background data
                 background_data = create_background_data()
                 
-                # Create SHAP explainer
-                explainer = create_shap_explainer(model, background_data)
-                
-                if explainer is not None:
-                    # Generate SHAP explanation
-                    fig_waterfall, fig_bar, shap_values = generate_shap_explanation(
-                        explainer, features, feature_names
+                # Try cached version first
+                try:
+                    explainer = create_shap_explainer(model, background_data)
+                    
+                    if explainer is not None:
+                        # Generate SHAP explanation
+                        fig_waterfall, fig_bar, shap_values = generate_shap_explanation(
+                            explainer, features, feature_names
+                        )
+                        
+                        if fig_waterfall is not None and fig_bar is not None:
+                            # Display SHAP plots
+                            st.subheader("📈 SHAP Waterfall Plot:")
+                            st.pyplot(fig_waterfall)
+                            plt.close(fig_waterfall)
+                            
+                            st.subheader("📊 SHAP Feature Importance:")
+                            st.pyplot(fig_bar)
+                            plt.close(fig_bar)
+                            
+                            # Create SHAP values table
+                            if shap_values is not None:
+                                st.subheader("📋 SHAP Values Table:")
+                                shap_df = pd.DataFrame({
+                                    'Feature': feature_names,
+                                    'Input Value': [feature_values[name] for name in feature_names],
+                                    'SHAP Value': shap_values[0],
+                                    'Contribution': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_values[0]]
+                                })
+                                
+                                # Sort by absolute SHAP value
+                                shap_df['Abs_SHAP'] = np.abs(shap_df['SHAP Value'])
+                                shap_df = shap_df.sort_values('Abs_SHAP', ascending=False).drop('Abs_SHAP', axis=1)
+                                
+                                st.dataframe(shap_df.style.format({'SHAP Value': '{:.4f}'}), use_container_width=True)
+                        else:
+                            raise Exception("Advanced SHAP plots failed")
+                    else:
+                        raise Exception("SHAP explainer creation failed")
+                        
+                except Exception as e:
+                    st.warning(f"Advanced SHAP analysis failed: {e}")
+                    st.info("Trying simplified SHAP analysis...")
+                    
+                    # Try simple analysis
+                    fig_simple, shap_values_simple = create_simple_shap_analysis(
+                        model, features, background_data, feature_names
                     )
                     
-                    if fig_waterfall is not None and fig_bar is not None:
-                        # Display SHAP plots
-                        st.subheader("📈 SHAP Waterfall Plot:")
-                        st.pyplot(fig_waterfall)
-                        plt.close(fig_waterfall)
+                    if fig_simple is not None:
+                        st.subheader("📊 SHAP Feature Importance (Simplified):")
+                        st.pyplot(fig_simple)
+                        plt.close(fig_simple)
                         
-                        st.subheader("📊 SHAP Feature Importance:")
-                        st.pyplot(fig_bar)
-                        plt.close(fig_bar)
-                        
-                        # Create SHAP values table
-                        if shap_values is not None:
+                        if shap_values_simple is not None:
                             st.subheader("📋 SHAP Values Table:")
                             shap_df = pd.DataFrame({
                                 'Feature': feature_names,
                                 'Input Value': [feature_values[name] for name in feature_names],
-                                'SHAP Value': shap_values[0],
-                                'Contribution': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_values[0]]
+                                'SHAP Value': shap_values_simple[0],
+                                'Contribution': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_values_simple[0]]
                             })
                             
                             # Sort by absolute SHAP value
@@ -252,19 +322,18 @@ if st.button("🔍 Run Prediction & Analysis", type="primary"):
                             shap_df = shap_df.sort_values('Abs_SHAP', ascending=False).drop('Abs_SHAP', axis=1)
                             
                             st.dataframe(shap_df.style.format({'SHAP Value': '{:.4f}'}), use_container_width=True)
-                            
-                            # SHAP interpretation
-                            st.info("""
-                            **SHAP Values Interpretation:**
-                            - **Positive SHAP values** increase the predicted AKI probability
-                            - **Negative SHAP values** decrease the predicted AKI probability
-                            - **Larger absolute values** indicate greater feature importance
-                            - The waterfall plot shows how each feature contributes to the final prediction
-                            """)
                     else:
-                        st.warning("⚠️ SHAP visualization could not be generated, but prediction is still valid.")
-                else:
-                    st.warning("⚠️ SHAP explainer could not be created. Prediction results are still valid.")
+                        st.error("⚠️ All SHAP analysis methods failed, but prediction is still valid.")
+                
+                # SHAP interpretation (if any analysis succeeded)
+                if 'shap_values' in locals() or 'shap_values_simple' in locals():
+                    st.info("""
+                    **SHAP Values Interpretation:**
+                    - **Positive SHAP values** increase the predicted AKI probability
+                    - **Negative SHAP values** decrease the predicted AKI probability
+                    - **Larger absolute values** indicate greater feature importance
+                    - Features are ranked by their impact on this specific prediction
+                    """)
         else:
             st.info("💡 SHAP analysis is disabled. Enable it above to see feature importance explanations.")
         
