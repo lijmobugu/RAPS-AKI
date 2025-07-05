@@ -41,25 +41,25 @@ feature_ranges = {
     "Intraoperative Complications": {"type": "categorical", "options": ["YES", "NO"]}
 }
 
-# Create background data for SHAP
+# Create background data for SHAP (smaller dataset for faster computation)
 @st.cache_data
 def create_background_data():
     """Create background dataset for SHAP explanation"""
-    # Generate representative background samples
     np.random.seed(42)
-    n_samples = 50  # Use fewer samples for faster computation
+    n_samples = 20  # Reduced for faster computation
     
     background_data = []
     for _ in range(n_samples):
         sample = {}
         for feature, properties in feature_ranges.items():
             if properties["type"] == "numerical":
-                # Generate random values within the range
                 min_val = properties["min"]
                 max_val = properties["max"]
-                sample[feature] = np.random.uniform(min_val, max_val)
+                # Use normal distribution around the middle of the range
+                mean_val = (min_val + max_val) / 2
+                std_val = (max_val - min_val) / 6
+                sample[feature] = np.clip(np.random.normal(mean_val, std_val), min_val, max_val)
             elif properties["type"] == "categorical":
-                # Random choice from options, then encode
                 choice = np.random.choice(properties["options"])
                 le = LabelEncoder()
                 le.fit(properties["options"])
@@ -68,102 +68,138 @@ def create_background_data():
     
     return pd.DataFrame(background_data, columns=feature_names)
 
-# SHAP explanation functions
-@st.cache_resource
-def create_shap_explainer(_model, _background_data):
-    """Create SHAP explainer for StackingClassifier"""
-    try:
-        # Use KernelExplainer for StackingClassifier
-        def model_predict(X):
-            return _model.predict_proba(X)[:, 1]  # Return probability of positive class
-        
-        explainer = shap.KernelExplainer(model_predict, _background_data.values)
-        return explainer
-    except Exception as e:
-        st.error(f"Failed to create SHAP explainer: {e}")
-        return None
-
-def generate_shap_explanation(explainer, features, feature_names, expected_value=0.5):
-    """Generate SHAP values and create visualizations"""
-    try:
-        if explainer is None:
-            return None, None, None
-        
-        # Calculate SHAP values (this may take some time)
-        shap_values = explainer.shap_values(features.values, nsamples=100)
-        
-        # Create SHAP waterfall plot
-        fig_waterfall = plt.figure(figsize=(10, 6))
-        shap.waterfall_plot(
-            shap.Explanation(
-                values=shap_values[0],
-                base_values=explainer.expected_value,
-                data=features.values[0],
-                feature_names=feature_names
-            ),
-            max_display=10,
-            show=False
-        )
-        plt.title("SHAP Waterfall Plot - Feature Contributions")
-        plt.tight_layout()
-        
-        # Create SHAP bar plot
-        fig_bar = plt.figure(figsize=(10, 6))
-        shap.bar_plot(
-            shap.Explanation(
-                values=shap_values[0],
-                feature_names=feature_names
-            ),
-            max_display=10,
-            show=False
-        )
-        plt.title("SHAP Bar Plot - Feature Importance")
-        plt.tight_layout()
-        
-        return fig_waterfall, fig_bar, shap_values
-        
-    except Exception as e:
-        st.error(f"Failed to generate SHAP explanation: {e}")
-        return None, None, None
-
-# Alternative simple SHAP function (if caching fails)
-def create_simple_shap_analysis(model, features, background_data, feature_names):
-    """Simple SHAP analysis without caching"""
+# Simple SHAP analysis for local explanation
+def create_local_shap_analysis(model, features, background_data, feature_names):
+    """Create local SHAP analysis for the input sample"""
     try:
         # Define prediction function
         def model_predict(X):
-            return model.predict_proba(X)[:, 1]
+            return model.predict_proba(X)[:, 1]  # Return probability of positive class
         
-        # Create explainer
+        # Create explainer with smaller background
         explainer = shap.KernelExplainer(model_predict, background_data.values)
         
-        # Calculate SHAP values
+        # Calculate SHAP values for the input sample (local explanation)
         shap_values = explainer.shap_values(features.values, nsamples=50)
         
-        # Create simple bar plot
-        fig, ax = plt.subplots(figsize=(10, 6))
+        # Get the base value (expected value)
+        base_value = explainer.expected_value
         
-        # Get feature importance
-        importance = np.abs(shap_values[0])
-        sorted_idx = np.argsort(importance)[::-1]
+        # Get the actual prediction
+        prediction = model_predict(features.values)[0]
         
-        # Create horizontal bar plot
+        # Extract SHAP values (handle both array and single value cases)
+        if isinstance(shap_values, list):
+            shap_vals = shap_values[0] if len(shap_values) > 0 else shap_values
+        else:
+            shap_vals = shap_values[0] if shap_values.ndim > 1 else shap_values
+        
+        # Create visualization
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # Plot 1: SHAP values bar chart
+        colors = ['red' if val > 0 else 'blue' for val in shap_vals]
         y_pos = np.arange(len(feature_names))
-        ax.barh(y_pos, importance[sorted_idx], color=['red' if shap_values[0][i] > 0 else 'blue' for i in sorted_idx])
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels([feature_names[i] for i in sorted_idx])
-        ax.set_xlabel('SHAP Value (Impact on Prediction)')
-        ax.set_title('Feature Importance - SHAP Analysis')
+        
+        ax1.barh(y_pos, shap_vals, color=colors, alpha=0.7)
+        ax1.set_yticks(y_pos)
+        ax1.set_yticklabels(feature_names)
+        ax1.set_xlabel('SHAP Value (Impact on Prediction)')
+        ax1.set_title('Local Feature Importance for This Patient')
+        ax1.axvline(x=0, color='black', linestyle='-', alpha=0.3)
+        
+        # Add value labels on bars
+        for i, v in enumerate(shap_vals):
+            ax1.text(v + (0.001 if v >= 0 else -0.001), i, f'{v:.3f}', 
+                    va='center', ha='left' if v >= 0 else 'right', fontsize=8)
+        
+        # Plot 2: Waterfall-style explanation
+        # Sort by absolute impact
+        sorted_idx = np.argsort(np.abs(shap_vals))[::-1]
+        
+        cumulative = base_value
+        x_pos = [0]
+        y_labels = ['Base\nValue']
+        
+        for i, idx in enumerate(sorted_idx):
+            cumulative += shap_vals[idx]
+            x_pos.append(cumulative)
+            y_labels.append(f'{feature_names[idx]}\n{shap_vals[idx]:.3f}')
+        
+        y_labels.append('Final\nPrediction')
+        
+        # Create waterfall plot
+        ax2.plot(range(len(x_pos)), x_pos, 'o-', linewidth=2, markersize=8)
+        ax2.set_xticks(range(len(y_labels)))
+        ax2.set_xticklabels(y_labels, rotation=45, ha='right')
+        ax2.set_ylabel('Prediction Probability')
+        ax2.set_title('Prediction Breakdown (Waterfall)')
+        ax2.grid(True, alpha=0.3)
+        
+        # Add horizontal line at base value
+        ax2.axhline(y=base_value, color='gray', linestyle='--', alpha=0.5, label=f'Base Value: {base_value:.3f}')
+        ax2.axhline(y=prediction, color='red', linestyle='--', alpha=0.5, label=f'Final Prediction: {prediction:.3f}')
+        ax2.legend()
         
         plt.tight_layout()
-        return fig, shap_values
+        return fig, shap_vals, base_value, prediction
         
     except Exception as e:
-        st.error(f"Simple SHAP analysis failed: {e}")
+        st.error(f"Local SHAP analysis failed: {e}")
+        return None, None, None, None
+
+# Create simple feature importance without SHAP
+def create_simple_feature_analysis(model, features, feature_names):
+    """Create simple feature importance analysis"""
+    try:
+        # Get base prediction
+        base_pred = model.predict_proba(features)[0, 1]
+        
+        # Calculate feature importance by perturbation
+        feature_importance = []
+        
+        for i, feature in enumerate(feature_names):
+            # Create modified feature set
+            modified_features = features.copy()
+            
+            # For numerical features, try mean value
+            if feature_ranges[feature]["type"] == "numerical":
+                mean_val = (feature_ranges[feature]["min"] + feature_ranges[feature]["max"]) / 2
+                modified_features.iloc[0, i] = mean_val
+            else:
+                # For categorical, try the opposite value
+                current_val = modified_features.iloc[0, i]
+                modified_features.iloc[0, i] = 1 - current_val
+            
+            # Get prediction with modified feature
+            modified_pred = model.predict_proba(modified_features)[0, 1]
+            
+            # Calculate importance as difference
+            importance = base_pred - modified_pred
+            feature_importance.append(importance)
+        
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        colors = ['red' if val > 0 else 'blue' for val in feature_importance]
+        y_pos = np.arange(len(feature_names))
+        
+        ax.barh(y_pos, feature_importance, color=colors, alpha=0.7)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(feature_names)
+        ax.set_xlabel('Feature Importance (Perturbation Method)')
+        ax.set_title('Feature Importance Analysis for This Patient')
+        ax.axvline(x=0, color='black', linestyle='-', alpha=0.3)
+        
+        plt.tight_layout()
+        return fig, feature_importance
+        
+    except Exception as e:
+        st.error(f"Simple feature analysis failed: {e}")
         return None, None
 
 # Streamlit interface
-st.title("🏥 AKI Prediction Model with SHAP Explanations")
+st.title("🏥 AKI Prediction Model with Local SHAP Analysis")
 st.header("Please enter the following clinical parameters:")
 
 # Create two-column layout
@@ -171,7 +207,6 @@ col1, col2 = st.columns(2)
 
 feature_values = {}
 for i, (feature, properties) in enumerate(feature_ranges.items()):
-    # Alternate placement between two columns
     current_col = col1 if i % 2 == 0 else col2
     
     with current_col:
@@ -202,17 +237,16 @@ for feature, properties in feature_ranges.items():
 # Convert to model input format
 features = pd.DataFrame([processed_values], columns=feature_names)
 
-# Prediction functionality with SHAP
-if st.button("🔍 Run Prediction & Analysis", type="primary"):
+# Prediction functionality
+if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
     try:
         # Model prediction
         predicted_class = model.predict(features)[0]
         predicted_proba = model.predict_proba(features)[0]
 
         # Display prediction results
-        st.subheader("📊 Prediction Results:")
+        st.subheader("📊 Prediction Results for This Patient:")
         
-        # Create results display
         col1, col2 = st.columns(2)
         
         with col1:
@@ -224,141 +258,134 @@ if st.button("🔍 Run Prediction & Analysis", type="primary"):
                 st.success(f"AKI Probability: **{predicted_proba[1]*100:.1f}%**")
         
         with col2:
-            # Display probability distribution
             prob_data = pd.DataFrame({
                 'Risk Category': ['Low Risk', 'High Risk'],
                 'Probability': [predicted_proba[0]*100, predicted_proba[1]*100]
             })
             st.bar_chart(prob_data.set_index('Risk Category'))
         
-        # Detailed probability information
-        st.subheader("📋 Detailed Prediction Information:")
+        # Local SHAP Analysis
+        st.subheader("🔍 Local Feature Importance Analysis:")
+        st.info("This analysis explains why the model made this specific prediction for this patient.")
         
-        # Create probability table
-        prob_df = pd.DataFrame({
-            'Risk Category': ['Low Risk (Class 0)', 'High Risk (Class 1)'],
-            'Predicted Probability': [f"{predicted_proba[0]*100:.2f}%", f"{predicted_proba[1]*100:.2f}%"],
-            'Confidence Score': [f"{predicted_proba[0]:.4f}", f"{predicted_proba[1]:.4f}"]
-        })
-        
-        st.dataframe(prob_df, use_container_width=True)
-        
-        # SHAP Analysis
-        st.subheader("🔍 SHAP Model Explanation:")
-        
-        # Option to enable/disable SHAP (due to computational cost)
-        enable_shap = st.checkbox("Enable SHAP Analysis (may take 30-60 seconds)", value=True)
+        enable_shap = st.checkbox("Enable Local SHAP Analysis", value=True)
         
         if enable_shap:
-            with st.spinner("Generating SHAP explanations... This may take a moment."):
-                # Create background data
-                background_data = create_background_data()
-                
-                # Try cached version first
-                try:
-                    explainer = create_shap_explainer(model, background_data)
+            analysis_method = st.radio(
+                "Choose analysis method:",
+                ["SHAP (More Accurate)", "Perturbation (Faster)"],
+                help="SHAP provides more accurate explanations but takes longer to compute"
+            )
+            
+            with st.spinner("Analyzing this patient's features..."):
+                if analysis_method == "SHAP (More Accurate)":
+                    # Create background data
+                    background_data = create_background_data()
                     
-                    if explainer is not None:
-                        # Generate SHAP explanation
-                        fig_waterfall, fig_bar, shap_values = generate_shap_explanation(
-                            explainer, features, feature_names
-                        )
-                        
-                        if fig_waterfall is not None and fig_bar is not None:
-                            # Display SHAP plots
-                            st.subheader("📈 SHAP Waterfall Plot:")
-                            st.pyplot(fig_waterfall)
-                            plt.close(fig_waterfall)
-                            
-                            st.subheader("📊 SHAP Feature Importance:")
-                            st.pyplot(fig_bar)
-                            plt.close(fig_bar)
-                            
-                            # Create SHAP values table
-                            if shap_values is not None:
-                                st.subheader("📋 SHAP Values Table:")
-                                shap_df = pd.DataFrame({
-                                    'Feature': feature_names,
-                                    'Input Value': [feature_values[name] for name in feature_names],
-                                    'SHAP Value': shap_values[0],
-                                    'Contribution': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_values[0]]
-                                })
-                                
-                                # Sort by absolute SHAP value
-                                shap_df['Abs_SHAP'] = np.abs(shap_df['SHAP Value'])
-                                shap_df = shap_df.sort_values('Abs_SHAP', ascending=False).drop('Abs_SHAP', axis=1)
-                                
-                                st.dataframe(shap_df.style.format({'SHAP Value': '{:.4f}'}), use_container_width=True)
-                        else:
-                            raise Exception("Advanced SHAP plots failed")
-                    else:
-                        raise Exception("SHAP explainer creation failed")
-                        
-                except Exception as e:
-                    st.warning(f"Advanced SHAP analysis failed: {e}")
-                    st.info("Trying simplified SHAP analysis...")
-                    
-                    # Try simple analysis
-                    fig_simple, shap_values_simple = create_simple_shap_analysis(
+                    # Run SHAP analysis
+                    fig, shap_vals, base_value, prediction = create_local_shap_analysis(
                         model, features, background_data, feature_names
                     )
                     
-                    if fig_simple is not None:
-                        st.subheader("📊 SHAP Feature Importance (Simplified):")
-                        st.pyplot(fig_simple)
-                        plt.close(fig_simple)
+                    if fig is not None:
+                        st.pyplot(fig)
+                        plt.close(fig)
                         
-                        if shap_values_simple is not None:
-                            st.subheader("📋 SHAP Values Table:")
-                            shap_df = pd.DataFrame({
-                                'Feature': feature_names,
-                                'Input Value': [feature_values[name] for name in feature_names],
-                                'SHAP Value': shap_values_simple[0],
-                                'Contribution': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_values_simple[0]]
-                            })
+                        # Create detailed table
+                        st.subheader("📋 Detailed Feature Impact:")
+                        
+                        impact_df = pd.DataFrame({
+                            'Feature': feature_names,
+                            'Patient Value': [feature_values[name] for name in feature_names],
+                            'SHAP Impact': shap_vals,
+                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in shap_vals],
+                            'Absolute Impact': np.abs(shap_vals)
+                        })
+                        
+                        # Sort by absolute impact
+                        impact_df = impact_df.sort_values('Absolute Impact', ascending=False)
+                        
+                        # Format display
+                        st.dataframe(
+                            impact_df.drop('Absolute Impact', axis=1).style.format({
+                                'SHAP Impact': '{:.4f}'
+                            }),
+                            use_container_width=True
+                        )
+                        
+                        # Summary statistics
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Base Risk", f"{base_value:.3f}")
+                        with col2:
+                            st.metric("Final Risk", f"{prediction:.3f}")
+                        with col3:
+                            st.metric("Total Impact", f"{prediction - base_value:.3f}")
                             
-                            # Sort by absolute SHAP value
-                            shap_df['Abs_SHAP'] = np.abs(shap_df['SHAP Value'])
-                            shap_df = shap_df.sort_values('Abs_SHAP', ascending=False).drop('Abs_SHAP', axis=1)
-                            
-                            st.dataframe(shap_df.style.format({'SHAP Value': '{:.4f}'}), use_container_width=True)
-                    else:
-                        st.error("⚠️ All SHAP analysis methods failed, but prediction is still valid.")
-                
-                # SHAP interpretation (if any analysis succeeded)
-                if 'shap_values' in locals() or 'shap_values_simple' in locals():
-                    st.info("""
-                    **SHAP Values Interpretation:**
-                    - **Positive SHAP values** increase the predicted AKI probability
-                    - **Negative SHAP values** decrease the predicted AKI probability
-                    - **Larger absolute values** indicate greater feature importance
-                    - Features are ranked by their impact on this specific prediction
-                    """)
-        else:
-            st.info("💡 SHAP analysis is disabled. Enable it above to see feature importance explanations.")
+                else:
+                    # Run perturbation analysis
+                    fig, importance = create_simple_feature_analysis(model, features, feature_names)
+                    
+                    if fig is not None:
+                        st.pyplot(fig)
+                        plt.close(fig)
+                        
+                        # Create detailed table
+                        st.subheader("📋 Feature Importance (Perturbation Method):")
+                        
+                        impact_df = pd.DataFrame({
+                            'Feature': feature_names,
+                            'Patient Value': [feature_values[name] for name in feature_names],
+                            'Importance Score': importance,
+                            'Impact Direction': ['Increases Risk' if val > 0 else 'Decreases Risk' for val in importance]
+                        })
+                        
+                        # Sort by absolute importance
+                        impact_df['Abs_Importance'] = np.abs(impact_df['Importance Score'])
+                        impact_df = impact_df.sort_values('Abs_Importance', ascending=False).drop('Abs_Importance', axis=1)
+                        
+                        st.dataframe(
+                            impact_df.style.format({
+                                'Importance Score': '{:.4f}'
+                            }),
+                            use_container_width=True
+                        )
+            
+            # Interpretation
+            st.subheader("💡 How to Interpret This Analysis:")
+            st.info("""
+            **Understanding the Results:**
+            - **Red bars**: Features that increase AKI risk for this patient
+            - **Blue bars**: Features that decrease AKI risk for this patient
+            - **Longer bars**: Features with greater impact on the prediction
+            - **Waterfall plot**: Shows how each feature contributes to the final prediction
+            
+            **This is a LOCAL explanation** - it explains why the model made this specific prediction for this particular patient, not how the model works in general.
+            """)
         
-        # Risk interpretation
+        # Clinical interpretation
         st.subheader("🔍 Clinical Interpretation:")
         
         if predicted_class == 1:
             st.warning("""
-            **High Risk Prediction:**
-            - The model predicts a high probability of AKI development for this patient
-            - Enhanced monitoring and preventive measures are recommended
-            - Please consider clinical context and additional risk factors in decision-making
+            **High Risk Prediction for This Patient:**
+            - The model predicts a high probability of AKI development
+            - Review the feature importance analysis above to understand key risk factors
+            - Consider enhanced monitoring and preventive interventions
+            - Integrate with clinical judgment and additional risk factors
             """)
         else:
             st.info("""
-            **Low Risk Prediction:**
-            - The model predicts a low probability of AKI development for this patient
+            **Low Risk Prediction for This Patient:**
+            - The model predicts a low probability of AKI development
+            - The feature analysis shows which factors are protective
             - Standard monitoring protocols should be maintained
-            - Please consider clinical context and additional risk factors in decision-making
+            - Continue to monitor for changes in risk factors
             """)
         
-        # Input feature review
-        st.subheader("📝 Input Parameter Summary:")
+        # Input summary
+        st.subheader("📝 Patient Parameters Summary:")
         
-        # Create feature table
         feature_df = pd.DataFrame({
             'Clinical Parameter': feature_names,
             'Input Value': [feature_values[name] for name in feature_names],
@@ -371,6 +398,6 @@ if st.button("🔍 Run Prediction & Analysis", type="primary"):
         st.error(f"❌ An error occurred during prediction: {e}")
         st.info("Please verify input values are correct or contact the system administrator.")
 
-# Add footer information
+# Add footer
 st.markdown("---")
-st.markdown("*This prediction model is for medical research purposes only and should not replace professional clinical judgment*")
+st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
