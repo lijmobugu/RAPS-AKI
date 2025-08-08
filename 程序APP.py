@@ -248,7 +248,7 @@ def create_simple_feature_analysis(model, features, feature_names):
         return None, None
 
 # Streamlit interface
-st.title("🏥 AKI Prediction Model with Local SHAP Analysis")
+st.title("🏥 RAPS-AKI")
 st.header("Please enter the following clinical parameters:")
 
 # Add reference values table
@@ -508,3 +508,4 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
