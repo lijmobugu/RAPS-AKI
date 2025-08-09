@@ -23,9 +23,9 @@ except (FileNotFoundError, AttributeError, ModuleNotFoundError) as e:
 
 # Enhanced feature range definitions with units and reference values
 feature_names = [
-    "Age", "Diabetes", "AST/ALT(DRR)", "Creatinine (Cr)", "INR", "PT", 
-    "Estimated Blood Loss (EBL) > 300 mL", "eGFR", "Tumor Dimension (mm)", 
-    "Intraoperative Complications"
+    "Age", "Diabetes", "WIT", "SCr", "NLR", "DOS", 
+    "EBL > 300 mL", "eGFR", "Tumor Dimension", 
+    "ASA score"
 ]
 
 feature_ranges = {
@@ -45,7 +45,7 @@ feature_ranges = {
         "reference": "NO: Normal glucose metabolism",
         "description": "Presence of diabetes mellitus"
     },
-    "AST/ALT(DRR)": {
+    "WIT": {
         "type": "numerical", 
         "min": 0, 
         "max": 10, 
@@ -54,7 +54,7 @@ feature_ranges = {
         "reference": "Normal: 0.8-1.2",
         "description": "Aspartate aminotransferase to Alanine aminotransferase ratio"
     },
-    "Creatinine (Cr)": {
+    "SCr": {
         "type": "numerical", 
         "min": 0, 
         "max": 10, 
@@ -63,7 +63,7 @@ feature_ranges = {
         "reference": "Normal: 0.6-1.2 mg/dL (M), 0.5-1.1 mg/dL (F)",
         "description": "Serum creatinine level"
     },
-    "INR": {
+    "NLR": {
         "type": "numerical", 
         "min": 0.5, 
         "max": 5.0, 
@@ -72,7 +72,7 @@ feature_ranges = {
         "reference": "Normal: 0.8-1.2",
         "description": "International Normalized Ratio"
     },
-    "PT": {
+    "DOS": {
         "type": "numerical", 
         "min": 10, 
         "max": 50, 
@@ -81,7 +81,7 @@ feature_ranges = {
         "reference": "Normal: 11-13 seconds",
         "description": "Prothrombin Time"
     },
-    "Estimated Blood Loss (EBL) > 300 mL": {
+    "EBL > 300 mL": {
         "type": "categorical", 
         "options": ["YES", "NO"],
         "unit": "Category",
@@ -97,7 +97,7 @@ feature_ranges = {
         "reference": "Normal: >90 mL/min/1.73m²",
         "description": "Estimated Glomerular Filtration Rate"
     },
-    "Tumor Dimension (mm)": {
+    "Tumor Dimension": {
         "type": "numerical", 
         "min": 0, 
         "max": 200, 
@@ -106,7 +106,7 @@ feature_ranges = {
         "reference": "Small: <20mm, Medium: 20-40mm, Large: >40mm",
         "description": "Maximum tumor diameter"
     },
-    "Intraoperative Complications": {
+    "ASA score": {
         "type": "categorical", 
         "options": ["YES", "NO"],
         "unit": "Category",
@@ -508,4 +508,5 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
 
