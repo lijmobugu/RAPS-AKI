@@ -50,7 +50,7 @@ feature_ranges = {
         "min": 0, 
         "max": 10, 
         "default": 1.0,
-        "unit": "Ratio",
+        "unit": "M=min",
         "reference": "Normal: 0.8-1.2",
         "description": "Aspartate aminotransferase to Alanine aminotransferase ratio"
     },
@@ -59,7 +59,7 @@ feature_ranges = {
         "min": 0, 
         "max": 10, 
         "default": 1.0,
-        "unit": "mg/dL",
+        "unit": "mol/L",
         "reference": "Normal: 0.6-1.2 mg/dL (M), 0.5-1.1 mg/dL (F)",
         "description": "Serum creatinine level"
     },
@@ -77,7 +77,7 @@ feature_ranges = {
         "min": 10, 
         "max": 50, 
         "default": 12,
-        "unit": "seconds",
+        "unit": "min",
         "reference": "Normal: 11-13 seconds",
         "description": "Prothrombin Time"
     },
@@ -93,7 +93,7 @@ feature_ranges = {
         "min": 0, 
         "max": 200, 
         "default": 90,
-        "unit": "mL/min/1.73m²",
+        "unit": "ml/(min×1.73m2)",
         "reference": "Normal: >90 mL/min/1.73m²",
         "description": "Estimated Glomerular Filtration Rate"
     },
@@ -109,7 +109,7 @@ feature_ranges = {
     "ASA score": {
         "type": "categorical", 
         "options": ["YES", "NO"],
-        "unit": "Category",
+        "unit": "Grade",
         "reference": "NO: Uncomplicated surgery",
         "description": "Presence of intraoperative complications"
     }
@@ -508,5 +508,6 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
 
 
