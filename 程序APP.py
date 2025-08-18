@@ -68,7 +68,7 @@ feature_ranges = {
         "min": 0.5, 
         "max": 5.0, 
         "default": 1.0,
-        "unit": "",
+        "unit": "Ratio",
         "reference": "Normal: 0.8-1.2",
         "description": "International Normalized Ratio"
     },
@@ -508,6 +508,7 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
 
 
 
