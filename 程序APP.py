@@ -50,7 +50,7 @@ feature_ranges = {
         "min": 0, 
         "max": 10, 
         "default": 1.0,
-        "unit": "M=min",
+        "unit": "min",
         "reference": "Normal: 0.8-1.2",
         "description": "Aspartate aminotransferase to Alanine aminotransferase ratio"
     },
@@ -68,7 +68,7 @@ feature_ranges = {
         "min": 0.5, 
         "max": 5.0, 
         "default": 1.0,
-        "unit": "Ratio",
+        #"unit": "Ratio",
         "reference": "Normal: 0.8-1.2",
         "description": "International Normalized Ratio"
     },
@@ -108,7 +108,7 @@ feature_ranges = {
     },
     "ASA score": {
         "type": "categorical", 
-        "options": ["YES", "NO"],
+        "options": ["1", "2", "3", "4", "5"],
         "unit": "Grade",
         "reference": "NO: Uncomplicated surgery",
         "description": "Presence of intraoperative complications"
@@ -508,6 +508,7 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
 
 
 
