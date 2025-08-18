@@ -59,7 +59,7 @@ feature_ranges = {
         "min": 0, 
         "max": 10, 
         "default": 1.0,
-        "unit": "mol/L",
+        "unit": "μmol/L",
         "reference": "Normal: 0.6-1.2 mg/dL (M), 0.5-1.1 mg/dL (F)",
         "description": "Serum creatinine level"
     },
@@ -508,6 +508,7 @@ if st.button("🔍 Run Local Prediction & Analysis", type="primary"):
 # Add footer
 st.markdown("---")
 st.markdown("*This prediction model provides local explanations for individual patients and is for research purposes only*")
+
 
 
 
